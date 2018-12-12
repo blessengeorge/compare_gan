@@ -13,9 +13,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+'''
+ 	generate_tasks is a python script file that notes:
+		
+		1. 	the experiment name
+				and call generate_tasks_lib.GetTask()
 
-#!/usr/bin/env python
+		2. 	workdir
+				and uses it to WriteTasksToDirectories
 
+'''
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -40,9 +47,12 @@ tf.flags.DEFINE_string(
 FLAGS = tf.flags.FLAGS
 
 def main(_):
+  # why is it written like this?  main(_)
   print("Running Experiments Generator for experiment %s" % FLAGS.experiment)
   tasks = generate_tasks_lib.GetTasks(FLAGS.experiment)
   task_utils.WriteTasksToDirectories(FLAGS.workdir, tasks)
 
+
+'''if this module is called first, then it is named main'''
 if __name__ == "__main__":
   tf.app.run()

@@ -1,0 +1,33 @@
+compare_gan_prepare_datasets.sh
+
+compare_gan_generate_tasks --workdir=/tmp/results --experiment=test2
+compare_gan_run_one_task --workdir=/tmp/results --task_num=0 --dataset_root=/tmp/datasets --command=train
+
+
+compare_gan_run_one_task --workdir=/tmp/results --task_num=1 --dataset_root=/tmp/datasets --command=train
+
+
+
+Learnings
+	sys.path contains all the import paths that will searched
+
+
+Also, 
+	python module of the week
+
+
+print("\n".join(sys.path))
+
+
+
+Send file to GPU
+	sshpass -f "/pass.txt" rsync -r ../CompareGAN george@gpu2.cse.iitk.ac.in:/data/blessen/thesis/GAN/BayesianGAN/
+
+
+
+
+compare_gan_generate_tasks --workdir=/tmp/results_multi_disc_train --experiment=test2
+compare_gan_run_one_task --workdir=/tmp/results_multi_disc_train --task_num=0 --dataset_root=/tmp/datasets --command=train
+
+compare_gan_generate_tasks --workdir=/tmp/results_debug --experiment=test2
+compare_gan_run_one_task --workdir=/tmp/results_debug --task_num=0 --dataset_root=/tmp/datasets --command=train

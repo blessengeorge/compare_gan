@@ -77,6 +77,27 @@ def TestExp():
   }
   return CreateCrossProductAndAddDefaultParams(config)
 
+def TestExp2():
+  """Run for one epoch over all tested GANs."""
+  config = {
+      "gan_type": ["GAN", "GAN_MINMAX", "WGAN", "WGAN_GP",
+                   "DRAGAN", "VAE", "LSGAN", "BEGAN",
+                   "GAN_PENALTY", "WGAN_PENALTY"],
+      "penalty_type": [consts.NO_PENALTY, consts.WGANGP_PENALTY],
+      "dataset": ["mnist"],
+      "architecture": [consts.INFOGAN_ARCH],
+      "training_steps": [20 * 60000 // BATCH_SIZE],
+      # Don't save any checkpoints during the training
+      # (one is always saved at the end).
+      "save_checkpoint_steps": [10000],
+      "batch_size": [BATCH_SIZE],
+      "tf_seed": [42],
+      "z_dim": [64],
+      # For test reasons - use a small sample.
+      "eval_test_samples": [10000],
+  }
+  return CreateCrossProductAndAddDefaultParams(config)
+
 
 def TestGILBOExp():
   config = TestExp()[0]
@@ -709,6 +730,8 @@ def GetTasks(experiment):
 
   if experiment == "test":
     return TestExp()
+  if experiment == "test2":
+    return TestExp2()
   if experiment == "test_gilbo":
     return TestGILBOExp()
   elif experiment == "test_penalty":

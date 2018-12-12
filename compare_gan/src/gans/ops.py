@@ -43,7 +43,7 @@ def lrelu(input_, leak=0.2, name="lrelu"):
   return tf.maximum(input_, leak * input_, name=name)
 
 
-def batch_norm(input_, is_training, scope):
+def batch_norm(input_, is_training, scope, reuse=False):
   return tf.contrib.layers.batch_norm(
       input_,
       decay=0.999,
@@ -52,7 +52,8 @@ def batch_norm(input_, is_training, scope):
       scale=True,
       fused=False,
       is_training=is_training,
-      scope=scope)
+      scope=scope, 
+      reuse=reuse)
 
 
 def layer_norm(input_, is_training, scope):
@@ -183,13 +184,17 @@ def conv2d(input_, output_dim, k_h, k_w, d_h, d_w, stddev=0.02, name="conv2d",
         initializer=initializer(stddev=stddev))
     if use_sn:
       conv = tf.nn.conv2d(
-          input_, spectral_norm(w), strides=[1, d_h, d_w, 1], padding="SAME")
+        input_, spectral_norm(w), strides=[1, d_h, d_w, 1], padding="SAME")
     else:
       conv = tf.nn.conv2d(input_, w, strides=[1, d_h, d_w, 1], padding="SAME")
     biases = tf.get_variable(
         "biases", [output_dim], initializer=tf.constant_initializer(0.0))
     return tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 
+def dropout(input_, keep_probability, name="dropout"):
+  with tf.variable_scope(name):
+    dropout = tf.nn.dropout(input_, keep_probability)
+    return dropout
 
 def deconv2d(input_, output_shape, k_h, k_w, d_h, d_w,
              stddev=0.02, name="deconv2d"):

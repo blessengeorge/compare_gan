@@ -25,7 +25,7 @@ import time
 
 from compare_gan.src.gans import consts
 from compare_gan.src.gans import ops
-from compare_gan.src.gans.ops import lrelu, batch_norm, linear, conv2d, deconv2d
+from compare_gan.src.gans.ops import lrelu, batch_norm, linear, conv2d, deconv2d, dropout
 
 import numpy as np
 from six.moves import range
@@ -88,7 +88,7 @@ class AbstractGAN(object):
       return self.disc_iters
     return 1
 
-  def discriminator(self, x, is_training, reuse=False):
+  def discriminator(self, x, is_training, reuse=False, batch_size_multiplier=1):
     """Discriminator architecture based on InfoGAN.
 
     Args:
@@ -101,22 +101,43 @@ class AbstractGAN(object):
       out_logit: the value "out" before sigmoid
       net: the architecture
     """
+    # print("\n"*5)
+    # print(reuse)
+    # print("\n"*5)
+
     sn = self.discriminator_normalization == consts.SPECTRAL_NORM
     with tf.variable_scope("discriminator", reuse=reuse):
       # Mapping x from [bs, h, w, c] to [bs, 1]
+      
+      # print("X: ", x)
       net = conv2d(
           x, 64, 4, 4, 2, 2, name="d_conv1", use_sn=sn)  # [bs, h/2, w/2, 64]
+      # net = dropout(net, 0.1)
       net = lrelu(net)
       net = conv2d(
           net, 128, 4, 4, 2, 2, name="d_conv2",
           use_sn=sn)  # [bs, h/4, w/4, 128]
+      # net = dropout(net, 0.1)
+      # print("Before: ", net)
+      
       if self.discriminator_normalization == consts.BATCH_NORM:
-        net = batch_norm(net, is_training=is_training, scope="d_bn2")
+        net0, net1 = tf.split(net, 2, 0)
+        net0 = batch_norm(net0, is_training=is_training, scope="d_bn2")
+        net1 = batch_norm(net1, is_training=is_training, scope="d_bn2", reuse=True) 
+        net = tf.concat([net0, net1], 0)
+      
+      # print("After: ", net)
       net = lrelu(net)
-      net = tf.reshape(net, [self.batch_size, -1])  # [bs, h * w * 8]
+      net = tf.reshape(net, [self.batch_size * batch_size_multiplier, -1])  # [bs, h * w * 8]
       net = linear(net, 1024, scope="d_fc3", use_sn=sn)  # [bs, 1024]
+      # net = dropout(net, 0.1)
+      
       if self.discriminator_normalization == consts.BATCH_NORM:
-        net = batch_norm(net, is_training=is_training, scope="d_bn3")
+        net0, net1 = tf.split(net, 2, 0)
+        net0 = batch_norm(net0, is_training=is_training, scope="d_bn3")
+        net1 = batch_norm(net1, is_training=is_training, scope="d_bn3", reuse=True) 
+        net = tf.concat([net0, net1], 0)        
+      
       net = lrelu(net)
       out_logit = linear(net, 1, scope="d_fc4", use_sn=sn)  # [bs, 1]
       out = tf.nn.sigmoid(out_logit)
@@ -128,15 +149,24 @@ class AbstractGAN(object):
     batch_size = self.batch_size
     with tf.variable_scope("generator", reuse=reuse):
       net = linear(z, 1024, scope="g_fc1")
+      # net = dropout(net, 0.1)
+      
       net = batch_norm(net, is_training=is_training, scope="g_bn1")
+
       net = lrelu(net)
       net = linear(net, 128 * (height // 4) * (width // 4), scope="g_fc2")
+      
       net = batch_norm(net, is_training=is_training, scope="g_bn2")
+      
+      # net = dropout(net, 0.1)
       net = lrelu(net)
       net = tf.reshape(net, [batch_size, height // 4, width // 4, 128])
       net = deconv2d(net, [batch_size, height // 2, width // 2, 64],
                      4, 4, 2, 2, name="g_dc3")
+      # net = dropout(net, 0.1)
+      
       net = batch_norm(net, is_training=is_training, scope="g_bn3")
+
       net = lrelu(net)
       net = deconv2d(net, [batch_size, height, width, self.c_dim],
                      4, 4, 2, 2, name="g_dc4")
@@ -284,6 +314,12 @@ class AbstractGAN(object):
   def run_single_train_step(self, features, counter, g_loss, sess):
     """Runs a single training step."""
 
+    d_loss = sess.run(
+        [self.d_loss],
+        feed_dict=self.discriminator_feed_dict(features, labels=None))
+
+    return d_loss
+
     # Update the discriminator network.
     _, summary_str, d_loss = sess.run(
         [self.d_optim, self.d_sum, self.d_loss],
@@ -294,7 +330,7 @@ class AbstractGAN(object):
     if (counter - 1) % self.disc_iters == 0 or g_loss is None:
       _, summary_str, g_loss = sess.run(
           [self.g_optim, self.g_sum, self.g_loss],
-          feed_dict=self.generator_feed_dict(features, labels=None))
+          feed_dict=self.discriminator_feed_dict(features, labels=None))
       self.writer.add_summary(summary_str, counter)
 
     self.after_training_step_hook(sess, features, counter)
@@ -431,21 +467,32 @@ class AbstractGAN(object):
     # Start training.
     counter = tf.train.global_step(sess, global_step)
     batch_input, _ = self._input_fn(params=None)
+
     start_time = time.time()
+
+    # import sys
+    # print(batch_input['z_for_disc_step'])
+    # print(batch_input['z_for_disc_step'])
 
     g_loss = None
     start_step = int(counter) + 1
     for step in range(start_step, self.training_steps + 1):
       # Fetch next batch and run the single training step.
-      features = sess.run(batch_input)
-      d_loss, g_loss = self.run_single_train_step(features, step, g_loss, sess)
 
+      features = sess.run(batch_input)
+      # print(batch_input['z_for_disc_step'])
+      # print(features['z_for_disc_step'])
+      # sys.exit()
+      # d_loss, g_loss = self.run_single_train_step(features, step, g_loss, sess)
+      d_loss = self.run_single_train_step(features, step, g_loss, sess)
+
+      print(d_loss)
       sess.run(global_step_inc)
-      self.print_progress(step, start_step, start_time, d_loss, g_loss,
-                          progress_reporter, sess)
-      self.maybe_save_samples(step, sess)
-      # Save the model and visualize current results.
-      self.maybe_save_checkpoint(self.checkpoint_dir, step, sess)
+      # self.print_progress(step, start_step, start_time, d_loss, g_loss,
+      #                     progress_reporter, sess)
+      # self.maybe_save_samples(step, sess)
+      # # Save the model and visualize current results.
+      # self.maybe_save_checkpoint(self.checkpoint_dir, step, sess)
 
     if start_step < self.training_steps:
       # Save the final model.

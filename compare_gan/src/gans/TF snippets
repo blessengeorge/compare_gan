@@ -1,0 +1,33 @@
+TF snippets
+
+1. To create a variable in a specific scope:
+	
+	with tf.variable_scope("my_scope"):
+		v = tf.get_variable("first_variable", [1])
+
+	Now we have a variable v, under the "my_scope" scope
+
+	print(v.name)	gives my_scope/first_variable:0
+
+
+2. In order to clear existing variables:
+
+	tf.reset_default_graph()
+
+3. In order to get all the variables in a particular scope:
+	
+	print( 	tf.get_collections(tf.GraphKeys.GLOBAL_VARIABLES, scope="some_scope") )
+
+
+
+with tf.variable_scope("variable_scope1"):
+	with tf.name_scope("name_scope1"):
+		var1 = tf.get_variable("variable1",[1])
+		#var2=1.0+var1
+
+
+with tf.variable_scope("first"):
+	with tf.variable_scope("second"):
+		v = tf.get_variable("c", [1])
+
+
